@@ -4,9 +4,22 @@
 """
 from __future__ import annotations
 
+import threading
 from typing import Any
 
 from app.seed import SEED_ROWS
+
+
+# 内部处理表：属于依赖解析/执行模块的实现细节，不作为独立业务模块展示。
+INTERNAL_TABLES = {
+    "upstream_event",
+    "upstream_event_queue",
+    "downstream_trigger",
+    "execution_item",
+    "execution_result",
+    "execution_status",
+    "dependency_assignment",
+}
 
 
 class Store:
@@ -16,7 +29,7 @@ class Store:
         }
 
     def module_names(self) -> list[str]:
-        return sorted(self._tables)
+        return sorted(name for name in self._tables if name not in INTERNAL_TABLES)
 
     def rows(self, module: str) -> list[dict[str, Any]]:
         return self._tables.setdefault(module, [])
@@ -47,3 +60,7 @@ class Store:
 
 
 store = Store()
+
+# 写路径共用的可重入锁：依赖登记、关系生效、事件去重与执行回写都在这把锁内完成，
+# 保证并发提交同一个上游完成事件时只有一个请求能生成下游触发记录。
+store_lock = threading.RLock()
